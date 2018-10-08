@@ -65,4 +65,12 @@ child2 = ezfc.translate(ezfc.rectangle(1,10),4,0,0)
 child3 = ezfc.translate(ezfc.rectangle(10,1),0,5,0)
 result = ezfc.difference(parent, [child1,child2,child3])
 
+# text test
+letterFaces = ezfc.text("3d text! ¯\_(ツ)_/¯")
+letters3D = ezfc.extrude(letterFaces, 0, 0, 20)
+# ezfc.save2FCStd(letters3D, '/tmp/doc.FCStd')
+ezfc.solid2STEP(letters3D, 'letters.step')
+letterSlices = ezfc.section(letters3D)
+ezfc.save2DXF(letterSlices, "letterSlices.dxf")
+
 print "Done"

@@ -137,36 +137,6 @@ def roundedRectangle(xDim,yDim,r=None,drillCorners=False,ear=False):
     
     if len(circles) > 0:
         roundedGuy = union(polygonFace, circles)
-        # now fuse doesn't work on faces so we have to make this 3d to do the fusing
-        
-        # polygonFace3D = extrude(polygonFace, 0, 0, 1)
-        # circles3D = extrude(circles, 0, 0, 1)
-        # save2FCStd(circles3D+[polygonFace3D], "/tmp/doc.FCStd")
-        # roundedGuyA = polygonFace3D.multiFuse(circles3D, 1e-3)
-        # roundedGuyB = roundedGuyA.removeSplitter()
-        # save2FCStd(roundedGuyA, "/tmp/doc.FCStd")
-        # hisFaces = roundedGuyA.Faces
-        # largestFace = []
-        # largestArea = 0
-        # find the two largest faces
-        # for faceNum, face in enumerate(hisFaces):
-        #    thisArea = face.Area
-        #    if thisArea > largestArea:
-        #        largestArea = thisArea
-        #        largestFace = [faceNum]
-        #    elif thisArea == largestArea:
-        #        largestFace.append(faceNum)
-        
-        # now there should be exactly two largest faces with equal areas
-        # and one of them must be in the z=0 plane
-        # if hisFaces[largestFace[0]].CenterOfMass[2] == 0:
-        #    roundedGuy = hisFaces[largestFace[0]]
-        # else:
-        #    roundedGuy = hisFaces[largestFace[1]]
-        # roundedGuy = polygonFace.oldFuse(circles[0])
-        # roundedGuy.removeSplitter()
-        #roundedGuy = roundedGuy.Faces[1]
-        #roundedGuy = polygonFace.multiFuse(circles,1e-5).removeSplitter().Faces[0]
     else:
         roundedGuy = polygonFace;
 
@@ -289,13 +259,21 @@ def _multiCut(parentObject,childObjects,tol=1e-5):
     else:
         return workpieces
 
-def save2DXF (thing,outputFilename):
+def save2DXF (things, outputFilename):
     """sends a projection of an object's edges onto the z=0 plane to a dxf file (in a layer named "0")
     """
-    tmpPart = mydoc.addObject("Part::Feature")
-    tmpPart.Shape = thing
-    importDXF.export([tmpPart], outputFilename)
-    mydoc.removeObject(tmpPart.Name)
+    if type(things) is not list:
+        things = [things]
+    outList = []
+    tmpParts = []
+    for thing in things:
+        tmpPart = mydoc.addObject("Part::Feature")
+        tmpParts.append(tmpPart)
+        tmpParts[-1].Shape = thing
+    importDXF.export(tmpParts, outputFilename)
+    
+    for tmpPart in tmpParts:
+        mydoc.removeObject(tmpPart.Name)
     return
 
 def save2FCStd (toSave, outputFullPath):
@@ -468,6 +446,9 @@ def rotate(objs,xDeg,yDeg,zDeg,px=0,py=0,pz=0):
 
 # given a solid and a z value, returns a set of edges 
 def section (solid,height="halfWay"):
+    if type(solid) is list:
+        solid = Part.makeCompound(solid)
+
     bb = solid.BoundBox
     if height == "halfWay":
         zPos = bb.ZLength/2.0
@@ -478,3 +459,21 @@ def section (solid,height="halfWay"):
     sectionShape = solid.section(slicePlane)
     return sectionShape
 
+def text (string, fontFile='/usr/share/fonts/TTF/FreeMono.ttf', height=100, returnWires = False):
+    """returns a list of faces corresponding to each character in a string that trace text letters
+    maybe the default fontdir and font variables have only been tested in Arch Linux"""
+    wires = Part.makeWireString(string, fontFile, height)
+    if returnWires:
+        # flat_wires = []
+        # for letter in wires:
+        #    for wire in letter:
+        #        flat_wires.append(wire)
+            
+        flat_wires = [item for sublist in wires for item in sublist]
+        return flat_wires
+    else:
+        faces = []
+        for letter in wires:
+            faces.append(Part.Face(letter))
+    
+        return faces
