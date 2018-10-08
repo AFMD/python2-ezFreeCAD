@@ -10,7 +10,6 @@ import FreeCAD
 import warnings
 import ezFreeCAD as ezfc
 
-
 myCone = ezfc.cone(10, 0, 30)
 mySphere = ezfc.sphere(10)
 mySphere = ezfc.translate(mySphere,0,0,25)
@@ -20,6 +19,7 @@ myCircle = ezfc.circle(25)
 myDisc = ezfc.extrude(myCircle,0,0,-15)
 #myDisc = rotate(myDisc,-90,0,0)
 myDisc = ezfc.translate(myDisc,0,25,3)
+
 osThingy = ezfc.difference(myDisc, pawn)
 background = ezfc.roundedRectangle(50, 50,r=(2,5,7,9),drillCorners=(False,True,True,True),ear=True)
 background = ezfc.extrude(background, 0, 0, -5)

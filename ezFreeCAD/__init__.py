@@ -13,6 +13,8 @@ else:
     FreeCAD = sys.modules['FreeCAD']
     import Part
     import Mesh
+    import BOPTools
+    BOPTools.importAll()
 
 try:
     import importDXF
@@ -44,8 +46,8 @@ def cube(xDim,yDim,zDim):
 def circle(radius):
     '''Create circle centered on origin (which plane?)'''
     circEdge = Part.makeCircle(radius)
-    circWire = Part.Wire(circEdge)
-    circFace = Part.Face(circWire)
+    #circWire = Part.Wire(circEdge)
+    circFace = Part.makeFilledFace([circEdge])
     return circFace
 
 # r can accept a scalar or a list or tuple with 4 radii, drillCorners adds circles at the corners
@@ -113,11 +115,11 @@ def roundedRectangle(xDim,yDim,r=None,drillCorners=False,ear=False):
         if ear is True:
             c2 = Part.makePlane(2*radii[2],radii[2])
             rounder = Part.makeCircle(radii[2], FreeCAD.Vector(2*radii[2],radii[2],0))
-            rounder = Part.Wire(rounder)
-            rounder = Part.Face(rounder)            
+            rounder = Part.makeFilledFace([rounder])
+            #rounder = Part.Face(rounder)
             c2 = c2.cut(rounder)
             c2.translate(FreeCAD.Vector((xDim-radii[2],0,0)))
-        circles.append(c2)  
+        circles.append(c2.Faces[0])  
     if radii[3]>0: # southwest
         c3 = circle(radii[3])
         cornerOffsetXY = radii[3]
@@ -127,20 +129,50 @@ def roundedRectangle(xDim,yDim,r=None,drillCorners=False,ear=False):
         if ear is True:
             c3 = Part.makePlane(2*radii[3],radii[3])
             rounder = Part.makeCircle(radii[3], FreeCAD.Vector(0,radii[3],0))
-            rounder = Part.Wire(rounder)
-            rounder = Part.Face(rounder)            
+            rounder = Part.makeFilledFace([rounder])
+            #rounder = Part.Face(rounder)          
             c3 = c3.cut(rounder)
             c3.translate(FreeCAD.Vector((-radii[3],0,0)))
-        circles.append(c3)
+        circles.append(c3.Faces[0])
     
     if len(circles) > 0:
-        roundedGuy = polygonFace.multiFuse(circles,1e-5).removeSplitter().Faces[0]
+        roundedGuy = union(polygonFace, circles)
+        # now fuse doesn't work on faces so we have to make this 3d to do the fusing
+        
+        # polygonFace3D = extrude(polygonFace, 0, 0, 1)
+        # circles3D = extrude(circles, 0, 0, 1)
+        # save2FCStd(circles3D+[polygonFace3D], "/tmp/doc.FCStd")
+        # roundedGuyA = polygonFace3D.multiFuse(circles3D, 1e-3)
+        # roundedGuyB = roundedGuyA.removeSplitter()
+        # save2FCStd(roundedGuyA, "/tmp/doc.FCStd")
+        # hisFaces = roundedGuyA.Faces
+        # largestFace = []
+        # largestArea = 0
+        # find the two largest faces
+        # for faceNum, face in enumerate(hisFaces):
+        #    thisArea = face.Area
+        #    if thisArea > largestArea:
+        #        largestArea = thisArea
+        #        largestFace = [faceNum]
+        #    elif thisArea == largestArea:
+        #        largestFace.append(faceNum)
+        
+        # now there should be exactly two largest faces with equal areas
+        # and one of them must be in the z=0 plane
+        # if hisFaces[largestFace[0]].CenterOfMass[2] == 0:
+        #    roundedGuy = hisFaces[largestFace[0]]
+        # else:
+        #    roundedGuy = hisFaces[largestFace[1]]
+        # roundedGuy = polygonFace.oldFuse(circles[0])
+        # roundedGuy.removeSplitter()
+        #roundedGuy = roundedGuy.Faces[1]
+        #roundedGuy = polygonFace.multiFuse(circles,1e-5).removeSplitter().Faces[0]
     else:
         roundedGuy = polygonFace;
 
     return roundedGuy
 
-# only tested/working with solid+solid and face+face unions
+# only tested/working with solid+solid and face+face unions (with face+face only in a non-tilted plane)
 def union(thingsA,thingsB,tol=1e-5):
     if type(thingsB) is not list:
         thingsB = [thingsB]
@@ -151,9 +183,32 @@ def union(thingsA,thingsB,tol=1e-5):
     else:
         thingA = thingsA
     if (thingA.ShapeType == 'Face') and (thingsB[0].ShapeType == 'Face'):
-        u = thingA.multiFuse(thingsB,tol).removeSplitter().Faces
+        # face fusing is not working anymore, so we have to make them 3d then fuse, then section to get the proper fused face
+        aCOM = thingA.CenterOfMass
+        u, v = thingA.Surface.parameter(aCOM)
+        x, y, z = thingA.normalAt(u, v)
+        vNorm = thingA.normalAt(u, v)
+        things3D = extrude(thingsB+[thingA], x, y, z)
+        a3D = things3D[-1]
+        b3D = things3D[0:-1]
+        tol = 0
+        pieces, map = a3D.generalFuse(b3D, tol)
+        cpound = BOPTools.JoinAPI.connect(pieces.Solids, tolerance=tol)
+        u3D = cpound.Solids[0].removeSplitter()
+        bb = u3D.BoundBox
+        dl = bb.DiagonalLength
+        u3D.translate(-vNorm/2)
+        u3DCOM = thingA.CenterOfMass
+        cutPlane = Part.makePlane(dl, dl, aCOM, vNorm)
+        cpCOM = cutPlane.CenterOfMass
+        dCOM = u3DCOM - cpCOM
+        cutPlane.translate(dCOM)
+        sectionShape = u3D.section(cutPlane)
+        u = [Part.makeFilledFace(sectionShape.Edges)]
     elif (thingA.ShapeType == 'Solid') and (thingsB[0].ShapeType == 'Solid'):
-        u = thingA.multiFuse(thingsB,tol).removeSplitter().Solids
+        pieces, map = thingA.generalFuse(thingsB, tol)
+        cpound = BOPTools.JoinAPI.connect(pieces.Solids, tolerance=tol)
+        u = cpound.Solids
     else:
         u = []
     if (len(u) is 1):
@@ -203,7 +258,7 @@ def _multiCut(parentObject,childObjects,tol=1e-5):
     while len(cuttingTools) is not 0: # let's cut away until our tools run out
         nPieces = len(workpieces)
         for i in range(nPieces):
-            cutResult = workpieces[i].cut(cuttingTools[0])
+            cutResult = workpieces[i].cut(cuttingTools[0], tol)
             
             try:
                 cutResult.removeSplitter() # removeSplitter if possible
@@ -234,12 +289,28 @@ def _multiCut(parentObject,childObjects,tol=1e-5):
     else:
         return workpieces
 
-# sends a projection of an object's edges onto the z=0 plane to a dxf file (in a layer named "0")
 def save2DXF (thing,outputFilename):
+    """sends a projection of an object's edges onto the z=0 plane to a dxf file (in a layer named "0")
+    """
     tmpPart = mydoc.addObject("Part::Feature")
     tmpPart.Shape = thing
     importDXF.export([tmpPart], outputFilename)
     mydoc.removeObject(tmpPart.Name)
+    return
+
+def save2FCStd (toSave, outputFullPath):
+    """saves shapes to freecad document file"""
+    if type(toSave) is not list:
+        toSave = [toSave]
+    else:
+        toSave = list(toSave)
+    parts = []
+    for num, shape in enumerate(toSave):
+        parts.append(mydoc.addObject("Part::Feature"))
+        parts[num].Shape = shape
+    mydoc.saveAs(outputFullPath)
+    for part in parts:
+        mydoc.removeObject(part.Name)
     return
 
 # reads a dxf file
