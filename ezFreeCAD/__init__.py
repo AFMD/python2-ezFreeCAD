@@ -15,6 +15,7 @@ else:
     import Mesh
     import BOPTools
     BOPTools.importAll()
+    import importSVG
 
 try:
     import importDXF
@@ -272,8 +273,25 @@ def save2DXF (things, outputFilename):
         tmpParts[-1].Shape = thing
     importDXF.export(tmpParts, outputFilename)
     
-    for tmpPart in tmpParts:
-        mydoc.removeObject(tmpPart.Name)
+    for obj in mydoc.Objects:
+        mydoc.removeObject(obj.Name)
+    return
+
+def save2SVG (things, outputFilename):
+    """exports things to svg file
+    """
+    if type(things) is not list:
+        things = [things]
+    outList = []
+    tmpParts = []
+    for thing in things:
+        tmpPart = mydoc.addObject("Part::Feature")
+        tmpParts.append(tmpPart)
+        tmpParts[-1].Shape = thing
+    importSVG.export(tmpParts, outputFilename)
+    
+    for obj in mydoc.Objects:
+        mydoc.removeObject(obj.Name)
     return
 
 def save2FCStd (toSave, outputFullPath):
@@ -287,8 +305,8 @@ def save2FCStd (toSave, outputFullPath):
         parts.append(mydoc.addObject("Part::Feature"))
         parts[num].Shape = shape
     mydoc.saveAs(outputFullPath)
-    for part in parts:
-        mydoc.removeObject(part.Name)
+    for obj in mydoc.Objects:
+        mydoc.removeObject(obj.Name)
     return
 
 # reads a dxf file
@@ -313,9 +331,8 @@ def loadDXF (DXFFilename):
         retDict[layerName] = layerShapes
         
     # clean it all up
-    nObjects = len(mydoc.Objects)
-    for i in range(nObjects):
-        mydoc.removeObject(mydoc.Objects[0].Name)
+    for obj in mydoc.Objects:
+        mydoc.removeObject(obj.Name)
     return retDict
 
 
@@ -330,11 +347,11 @@ def solid2STEP (solids,outputFilenames):
             tmpParts.append(mydoc.addObject("Part::Feature"))
             tmpParts[i].Shape = solids[i]
         Part.export(tmpParts,outputFilenames)
-        for i in range(len(tmpParts)): # remove all objects from the document
-            mydoc.removeObject(tmpParts[i].Name)
     else: # list of filenames
         for i in range(len(solids)):
-            solids[i].exportStep(outputFilenames[i])        
+            solids[i].exportStep(outputFilenames[i])
+    for obj in mydoc.Objects:
+        mydoc.removeObject(obj.Name)    
     return
 
 # sends a solid object(or list of objects) to a stl file(s)
@@ -444,20 +461,30 @@ def rotate(objs,xDeg,yDeg,zDeg,px=0,py=0,pz=0):
     else:
         return robjs
 
-# given a solid and a z value, returns a set of edges 
-def section (solid,height="halfWay"):
-    if type(solid) is list:
-        solid = Part.makeCompound(solid)
-
-    bb = solid.BoundBox
+# given a solid and a z value, returns a list of wires
+#  slices only in the X-Y plane
+def section (solid, height="halfWay"):
+    if type(solid) is not list:
+        solids=[solid]
+    else:
+        solids = solid
+    
+    ret = []
+    
+    #  determine the cutting plane
     if height == "halfWay":
-        zPos = bb.ZLength/2.0
+        comp = Part.makeCompound(solids)
+        bb = comp.BoundBox
+        zPos = bb.ZLength/2.0 + bb.ZMin
     else:
         zPos = height
-    slicePlane = rectangle(bb.XLength, bb.YLength)
-    slicePlane.translate(FreeCAD.Vector(bb.XMin,bb.YMin,zPos+bb.ZMin))
-    sectionShape = solid.section(slicePlane)
-    return sectionShape
+    
+    for s in solids:
+        for wire in s.slice(FreeCAD.Vector(0,0,1), zPos):
+            ret.append(wire)
+    # sectionShape = solid.section(slicePlane)
+
+    return ret
 
 def text (string, fontFile='/usr/share/fonts/TTF/FreeMono.ttf', height=100, returnWires = False):
     """returns a list of faces corresponding to each character in a string that trace text letters

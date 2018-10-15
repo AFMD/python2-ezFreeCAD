@@ -1,4 +1,5 @@
 #!/usr/bin/env python2
+# This Python file uses the following encoding: utf-8
 
 from __future__ import division
 
@@ -72,5 +73,7 @@ letters3D = ezfc.extrude(letterFaces, 0, 0, 20)
 ezfc.solid2STEP(letters3D, 'letters.step')
 letterSlices = ezfc.section(letters3D)
 ezfc.save2DXF(letterSlices, "letterSlices.dxf")
+ezfc.save2SVG(letterSlices, "letterSlices.svg")
 
-print "Done"
+print ("Done")
+
