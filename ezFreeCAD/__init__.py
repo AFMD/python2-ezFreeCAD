@@ -16,6 +16,7 @@ else:
     import BOPTools
     BOPTools.importAll()
     import importSVG
+    import importCSG
 
 try:
     import importDXF
@@ -335,7 +336,25 @@ def loadDXF (DXFFilename):
         mydoc.removeObject(obj.Name)
     return retDict
 
+# reads an openSCAD file
+# returns a dict with where the keys are the layer names and the values are lists of shapes in that layer
+def loadCSG (openSCADFilename):
+    # this adds some number of objects to mydoc
+    importCSG.insert(openSCADFilename, mydoc.Name)
+    stuff = mydoc.Objects
+    
+    # assume for now we only want the top level object (the last one)
+    someShapes = [stuff[-1].Shape]
 
+    # someShapes = []
+    # for thing in stuff:
+    #    if thing.Shape:
+    #        someShapes.append(thing.Shape)
+
+    # clean it all up
+    for obj in mydoc.Objects:
+        mydoc.removeObject(obj.Name)
+    return someShapes
 
 # sends a solid object to a step file
 def solid2STEP (solids,outputFilenames):

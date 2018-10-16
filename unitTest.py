@@ -75,5 +75,15 @@ letterSlices = ezfc.section(letters3D)
 ezfc.save2DXF(letterSlices, "letterSlices.dxf")
 ezfc.save2SVG(letterSlices, "letterSlices.svg")
 
+# openscad test
+scad3D = ezfc.loadCSG ("CSG.scad")
+ezfc.solid2STEP(scad3D, 'scad.step')
+# scad3D = ezfc.extrude(scad, 0, 0, 20)
+# ezfc.save2FCStd(scad, '/tmp/doc.FCStd')
+# ezfc.save2FCStd(scad3D, '/tmp/doc3d.FCStd')
+scadSlices = ezfc.section(scad3D)
+ezfc.save2DXF(scadSlices, "scadSlices.dxf")
+ezfc.save2SVG(scadSlices, "scadSlices.svg")
+
 print ("Done")
 
