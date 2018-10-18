@@ -344,12 +344,11 @@ def loadCSG (openSCADFilename):
     stuff = mydoc.Objects
     
     # assume for now we only want the top level object (the last one)
-    someShapes = [stuff[-1].Shape]
-
-    # someShapes = []
-    # for thing in stuff:
-    #    if thing.Shape:
-    #        someShapes.append(thing.Shape)
+    # someShapes = [stuff[-1].Shape]
+    someShapes = []
+    for thing in stuff:
+        if thing.InList == []:
+            someShapes.append(thing.Shape)
 
     # clean it all up
     for obj in mydoc.Objects:
